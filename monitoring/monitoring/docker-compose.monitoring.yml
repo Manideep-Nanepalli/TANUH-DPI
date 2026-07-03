@@ -59,6 +59,17 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_USERS_ALLOW_SIGN_UP=false
+      # ── Reachable at dpi.tanuh.ai/admin-dashboard/grafana/ via the frontend
+      #    container's reverse proxy (see frontend/httpd.conf). ─────────────────
+      - GF_SERVER_ROOT_URL=https://dpi.tanuh.ai/admin-dashboard/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+      # Anonymous Viewer access lets the admin-dashboard shell iframe dashboards
+      # without hitting Grafana's own login screen. Grafana itself is still only
+      # reachable through the login-gated shell (see dashboard_auth), never
+      # exposed directly — editing still requires the real admin/grafana.env login.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
@@ -70,6 +81,7 @@ services:
       - loki
     networks:
       - monitoring_internal
+      - app_network
 
   node-exporter:
     image: prom/node-exporter:v1.8.2
