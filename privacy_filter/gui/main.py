@@ -9,6 +9,7 @@ import sys
 import socket
 import threading
 import argparse
+from pathlib import Path
 
 
 def _setup_bundled_tesseract():
@@ -27,6 +28,29 @@ def _find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+class _Api:
+    """JS-callable API exposed to pywebview for native file operations."""
+
+    def __init__(self, port: int):
+        self._port = port
+
+    def save_file(self, url: str, filename: str) -> str:
+        """Download a file from the local server and save to Downloads folder."""
+        import urllib.request
+        downloads = Path.home() / "Downloads"
+        downloads.mkdir(exist_ok=True)
+        dest = downloads / filename
+        counter = 1
+        stem, ext = dest.stem, dest.suffix
+        while dest.exists():
+            dest = downloads / f"{stem} ({counter}){ext}"
+            counter += 1
+        urllib.request.urlretrieve(
+            f"http://127.0.0.1:{self._port}{url}", str(dest)
+        )
+        return str(dest)
 
 
 def main():
@@ -63,12 +87,14 @@ def main():
 
     try:
         import webview
+        api = _Api(port)
         webview.create_window(
             "Privacy Filter — TANUH DPI",
             url,
             width=1280,
             height=860,
             min_size=(900, 600),
+            js_api=api,
         )
         webview.start()
     except Exception:

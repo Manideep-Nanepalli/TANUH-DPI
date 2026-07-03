@@ -193,7 +193,8 @@ body {
 .pf-summary-card-label { font-size: 0.68rem !important; }
 .pf-meta-chip { padding: 3px 8px !important; font-size: 0.72rem !important; max-width: 200px !important; }
 .pf-entity-word { font-size: 0.78rem !important; }
-.pf-entity-badge { font-size: 0.68rem !important; padding: 2px 7px !important; white-space: nowrap !important; }
+.pf-entity-badge { font-size: 0.68rem !important; padding: 2px 7px !important; white-space: nowrap !important; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.pf-table td:nth-child(3) { overflow: hidden; }
 .pf-conf-label { font-size: 0.68rem !important; }
 
 /* ══ App Header Bar ══ */
@@ -744,22 +745,29 @@ body {
     if (btn) btn.disabled = true;
     if (sub) { sub.textContent = "Downloading…"; sub.style.display = "inline"; }
 
+    var suffix = kind === "redacted" ? "__redacted" : "";
+    var dlName = filename.replace(/(\.[^.]+)$/, suffix + "$1");
+
     try {
-      var r = await fetch(url, { signal: AbortSignal.timeout(30000) });
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      var blob = await r.blob();
-      var objUrl = URL.createObjectURL(blob);
-      var suffix = kind === "redacted" ? "__redacted" : "";
-      var dlName = filename.replace(/(\.[^.]+)$/, suffix + "$1");
-      var a = document.createElement("a");
-      a.href = objUrl;
-      a.download = dlName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function() { URL.revokeObjectURL(objUrl); }, 10000);
-      if (sub) { sub.textContent = "Saved"; sub.style.color = "#10b981"; }
-      if (window.showToast) window.showToast("File saved: " + dlName, "success");
+      if (window.pywebview && window.pywebview.api && window.pywebview.api.save_file) {
+        var savedPath = await window.pywebview.api.save_file(url, dlName);
+        if (sub) { sub.textContent = "Saved"; sub.style.color = "#10b981"; }
+        if (window.showToast) window.showToast("Saved to Downloads: " + dlName, "success");
+      } else {
+        var r = await fetch(url, { signal: AbortSignal.timeout(30000) });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        var blob = await r.blob();
+        var objUrl = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = objUrl;
+        a.download = dlName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(objUrl); }, 10000);
+        if (sub) { sub.textContent = "Saved"; sub.style.color = "#10b981"; }
+        if (window.showToast) window.showToast("File saved: " + dlName, "success");
+      }
       setTimeout(function() { if (sub) { sub.style.display = "none"; sub.style.color = "#64748b"; } }, 3000);
     } catch (e) {
       if (sub) { sub.textContent = "Error"; sub.style.color = "#ef4444"; }
