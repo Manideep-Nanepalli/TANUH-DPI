@@ -8,6 +8,7 @@ import os
 import sys
 import socket
 import threading
+import time
 import argparse
 from pathlib import Path
 
@@ -53,18 +54,47 @@ class _Api:
         return str(dest)
 
 
+_last_heartbeat = 0.0
+_HEARTBEAT_TIMEOUT = 60
+
+
+def _heartbeat_watchdog():
+    """Shut down if no heartbeat received for _HEARTBEAT_TIMEOUT seconds."""
+    global _last_heartbeat
+    while True:
+        time.sleep(5)
+        if _last_heartbeat > 0 and (time.time() - _last_heartbeat) > _HEARTBEAT_TIMEOUT:
+            os._exit(0)
+
+
 def main():
     _setup_bundled_tesseract()
 
     parser = argparse.ArgumentParser(description="Privacy Filter GUI")
     parser.add_argument("--port", type=int, default=0, help="Port (0 = auto)")
-    parser.add_argument("--no-window", action="store_true", help="Skip native window, use browser only")
+    parser.add_argument("--no-window", action="store_true",
+                        help="Skip native window, use browser only")
     args = parser.parse_args()
 
     port = args.port or _find_free_port()
 
     from privacy_filter.gui.server import create_app
     app = create_app()
+
+    is_browser_mode = False
+
+    @app.route("/api/heartbeat")
+    def heartbeat():
+        global _last_heartbeat
+        _last_heartbeat = time.time()
+        return "", 204
+
+    @app.route("/api/shutdown", methods=["POST"])
+    def shutdown():
+        threading.Thread(
+            target=lambda: (time.sleep(0.5), os._exit(0)), daemon=True
+        ).start()
+        return "", 204
 
     server_ready = threading.Event()
 
@@ -82,30 +112,42 @@ def main():
     url = f"http://127.0.0.1:{port}"
 
     if args.no_window:
-        _open_browser(url, port)
-        return
+        is_browser_mode = True
 
-    try:
-        import webview
-        api = _Api(port)
-        webview.create_window(
-            "Privacy Filter — TANUH DPI",
-            url,
-            width=1280,
-            height=860,
-            min_size=(900, 600),
-            js_api=api,
-        )
-        webview.start()
-    except Exception:
+    if not is_browser_mode:
+        try:
+            import webview
+            api = _Api(port)
+            webview.create_window(
+                "Privacy Filter — TANUH DPI",
+                url,
+                width=1280,
+                height=860,
+                min_size=(900, 600),
+                js_api=api,
+            )
+            webview.start()
+            return
+        except Exception:
+            is_browser_mode = True
+
+    if is_browser_mode:
+        _start_heartbeat_watchdog()
         _open_browser(url, port)
+
+
+def _start_heartbeat_watchdog():
+    global _last_heartbeat
+    _last_heartbeat = time.time()
+    threading.Thread(target=_heartbeat_watchdog, daemon=True).start()
 
 
 def _open_browser(url: str, port: int):
     import webbrowser
     webbrowser.open(url)
     print(f"Privacy Filter GUI running at {url}")
-    print("Press Ctrl+C to exit.")
+    print("Server will auto-stop ~60s after the browser tab is closed.")
+    print("Press Ctrl+C to exit manually.")
     try:
         threading.Event().wait()
     except KeyboardInterrupt:
