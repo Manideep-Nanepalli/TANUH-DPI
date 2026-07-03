@@ -193,8 +193,7 @@ body {
 .pf-summary-card-label { font-size: 0.68rem !important; }
 .pf-meta-chip { padding: 3px 8px !important; font-size: 0.72rem !important; max-width: 200px !important; }
 .pf-entity-word { font-size: 0.78rem !important; }
-.pf-entity-badge { font-size: 0.68rem !important; padding: 2px 7px !important; white-space: nowrap !important; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.pf-table td:nth-child(3) { overflow: hidden; }
+.pf-entity-badge { font-size: 0.68rem !important; padding: 2px 7px !important; white-space: normal !important; word-break: break-word; max-width: 100%; }
 .pf-conf-label { font-size: 0.68rem !important; }
 
 /* ══ App Header Bar ══ */
@@ -911,6 +910,22 @@ body {
    pf-editor.js — Redaction editor (modified for local GUI: no auth)
    ══════════════════════════════════════════════════════════════════════════ */
 """ + _get_editor_js() + r"""
+</script>
+
+<script>
+/* Browser-mode heartbeat + quit button (skipped when pywebview is active) */
+(function () {
+  if (window.pywebview) return;
+
+  setInterval(function () {
+    fetch("/api/heartbeat", { method: "GET" }).catch(function () {});
+  }, 5000);
+
+  var footer = document.createElement("div");
+  footer.style.cssText = "text-align:center; padding:12px 0 18px; background:#f8fafc;";
+  footer.innerHTML = '<button onclick="if(confirm(\'Quit Privacy Filter?\'))fetch(\'/api/shutdown\',{method:\'POST\'}).then(function(){document.title=\'Closed\';document.body.innerHTML=\'<div style=padding:80px;text-align:center;font-family:sans-serif><h2>Privacy Filter stopped.</h2><p style=color:#64748b>You can close this tab.</p></div>\'})" style="display:inline-flex;align-items:center;gap:6px;padding:7px 18px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;color:#64748b;font-family:inherit;font-size:0.78rem;font-weight:600;cursor:pointer;transition:all 0.2s;"><i class="fas fa-power-off"></i> Quit Application</button>';
+  document.body.appendChild(footer);
+})();
 </script>
 
 </body>
